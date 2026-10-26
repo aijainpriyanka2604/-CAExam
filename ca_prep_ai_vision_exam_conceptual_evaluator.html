@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CA Prep AI - Vision & Conceptual Evaluator</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- PDF.js library for PDF text extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+  <!-- Inter Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .pulse-ring {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      animation: pulse-red 1.5s infinite;
+    }
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header Header -->
+  <header class="bg-indigo-950 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-indigo-600 p-2 rounded-lg text-white">
+          <i class="fa-solid me-1 fa-graduation-cap text-xl"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg md:text-xl tracking-tight leading-tight">CA Prep AI Evaluator</h1>
+          <p class="text-xs text-indigo-200">Vision-Based Conceptual Assessment Engine</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-3">
+        <button id="btn-toggle-history" onclick="toggleDrawer()" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-100 text-xs md:text-sm px-3 py-2 rounded-lg border border-indigo-700/50 flex items-center space-x-2 transition">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span class="hidden md:inline">Submission Drawer</span>
+          <span id="history-badge" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6">
+
+    <!-- STEP 1: PDF UPLOAD & SETUP -->
+    <section id="step-setup" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 mb-6">
+      <div class="border-b border-slate-100 pb-4 mb-6">
+        <span class="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded">Step 1 of 3</span>
+        <h2 class="text-2xl font-bold text-slate-900 mt-2">Upload Material & Generate Exam</h2>
+        <p class="text-sm text-slate-500 mt-1">Upload your CA study material PDF. AI will formulate conceptual questions directly based on the context.</p>
+      </div>
+
+      <div class="space-y-6">
+        <!-- PDF File Drag & Drop Dropzone -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">Study Material (PDF Format)</label>
+          <div id="pdf-dropzone" class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-6 text-center bg-slate-50/50 transition cursor-pointer relative" onclick="document.getElementById('pdf-file-input').click()">
+            <input type="file" id="pdf-file-input" accept="application/pdf" class="hidden" onchange="handleFileSelect(event)">
+            <div id="dropzone-prompt" class="space-y-2">
+              <i class="fa-solid fa-file-pdf text-4xl text-indigo-400"></i>
+              <p class="text-sm font-medium text-slate-700">Click to select or drag and drop your PDF here</p>
+              <p class="text-xs text-slate-400">Supports ICAI Modules, RTPS, MTPs, or Personal Notes</p>
+            </div>
+            <div id="pdf-status-info" class="hidden space-y-2">
+              <i class="fa-solid fa-circle-check text-4xl text-emerald-500"></i>
+              <p id="pdf-filename" class="text-sm font-bold text-slate-800"></p>
+              <p id="pdf-page-count" class="text-xs text-slate-500"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual Fallback Text Area -->
+        <div>
+          <button type="button" onclick="toggleFallbackText()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline flex items-center space-x-1 mb-2">
+            <span>Or paste raw text directly instead</span>
+            <i class="fa-solid fa-chevron-down text-[10px]"></i>
+          </button>
+          <div id="fallback-text-container" class="hidden">
+            <textarea id="raw-pdf-text" rows="5" placeholder="Paste your CA syllabus text here..." class="w-full text-sm p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+          </div>
+        </div>
+
+        <!-- Settings Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">Number of Questions to Generate</label>
+            <select id="num-questions" class="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium">
+              <option value="1">1 Question</option>
+              <option value="2" selected>2 Questions</option>
+              <option value="3">3 Questions</option>
+              <option value="5">5 Questions</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">Exam Timer Rules (Strict)</label>
+            <div class="text-xs text-slate-600 bg-slate-100 p-2.5 rounded-lg border border-slate-200">
+              <p>⏱️ <strong>30 Seconds Writing:</strong> Read and write answer on paper.</p>
+              <p>📤 <strong>15 Seconds Upload:</strong> Snap photo & submit before time expires.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Start Button -->
+        <div class="pt-4 border-t border-slate-100 flex justify-end">
+          <button id="btn-generate-exam" onclick="generateExamFromPDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-sm transition flex items-center space-x-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Generate & Start Exam</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2: INTERACTIVE EXAM INTERFACE -->
+    <section id="step-exam" class="hidden space-y-6">
+      <!-- Progress Bar Card -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3 w-full md:w-auto">
+          <span id="current-q-badge" class="bg-indigo-900 text-white font-bold text-sm px-3 py-1.5 rounded-lg">
+            Q1 of 2
+          </span>
+          <div>
+            <span class="text-xs font-semibold uppercase text-slate-400 block">Exam State</span>
+            <span id="exam-phase-indicator" class="text-sm font-bold text-slate-700">Waiting to start writing</span>
+          </div>
+        </div>
+
+        <!-- Timer Badges -->
+        <div class="flex items-center space-x-3 w-full md:w-auto justify-end">
+          <!-- Writing Timer Badge -->
+          <div id="badge-writing-timer" class="flex items-center space-x-2 bg-slate-100 border border-slate-300 px-3 py-1.5 rounded-lg text-slate-500 transition">
+            <i class="fa-regular fa-clock"></i>
+            <span class="text-xs font-semibold">Write:</span>
+            <span id="timer-writing-display" class="font-mono font-bold text-base">00:30</span>
+          </div>
+
+          <!-- Upload Timer Badge -->
+          <div id="badge-upload-timer" class="flex items-center space-x-2 bg-slate-100 border border-slate-300 px-3 py-1.5 rounded-lg text-slate-500 transition">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span class="text-xs font-semibold">Upload:</span>
+            <span id="timer-upload-display" class="font-mono font-bold text-base">00:15</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Question Box -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold tracking-wider text-indigo-600 uppercase">Conceptual Test Question</h3>
+          <span class="text-xs text-slate-400 font-semibold">Max Marks: 10</span>
+        </div>
+        <div id="question-text-box" class="text-lg md:text-xl font-bold text-slate-800 leading-relaxed mb-6">
+          Loading question...
+        </div>
+
+        <!-- ACTION ZONE CONTROL CARD -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5">
+
+          <!-- PHASE 1: START WRITING CONTROL -->
+          <div id="ctrl-phase-start" class="text-center py-4 space-y-3">
+            <p class="text-sm text-slate-600">Click below to begin your 30-second writing time window.</p>
+            <button onclick="startWritingPhase()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg px-8 py-3 rounded-xl shadow border border-emerald-500 transition transform active:scale-95 flex items-center mx-auto space-x-2">
+              <i class="fa-solid fa-play"></i>
+              <span>Start Writing Now</span>
+            </button>
+          </div>
+
+          <!-- PHASE 2: IN WRITING CONTROL -->
+          <div id="ctrl-phase-writing" class="hidden text-center py-4 space-y-4">
+            <div class="inline-flex items-center space-x-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full border border-emerald-200 text-sm font-semibold">
+              <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
+              <span>Writing phase in progress...</span>
+            </div>
+            <p class="text-xs text-slate-500">Write your answer clearly on paper. Click "End Writing" as soon as you are done!</p>
+            <button onclick="endWritingPhase()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-base px-6 py-2.5 rounded-xl shadow transition flex items-center mx-auto space-x-2">
+              <i class="fa-solid fa-circle-stop"></i>
+              <span>End Writing & Proceed to Upload</span>
+            </button>
+          </div>
+
+          <!-- PHASE 3: UPLOAD CONTROL (STRICT 15 SECONDS) -->
+          <div id="ctrl-phase-upload" class="hidden space-y-4">
+            <div class="flex items-center justify-between bg-amber-50 border border-amber-200 p-3 rounded-lg">
+              <span class="text-xs font-bold text-amber-800 flex items-center">
+                <i class="fa-solid fa-triangle-exclamation mr-1.5 text-amber-600"></i>
+                15 SECONDS UPLOAD WINDOW RUNNING
+              </span>
+              <span class="text-xs font-mono font-bold text-amber-900" id="upload-mini-countdown">15s</span>
+            </div>
+
+            <!-- Upload Methods Tabs -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Method A: File Upload -->
+              <div class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col justify-between">
+                <div>
+                  <h4 class="text-xs font-bold text-slate-700 uppercase mb-2">Option A: Upload Image File</h4>
+                  <input type="file" id="answer-image-file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" onchange="handleAnswerImageUpload(event)">
+                </div>
+              </div>
+
+              <!-- Method B: Live Webcam -->
+              <div class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col justify-between">
+                <div>
+                  <h4 class="text-xs font-bold text-slate-700 uppercase mb-2">Option B: Live Camera Snapshot</h4>
+                  <button onclick="openWebcamModal()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-2 px-3 rounded-md transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-camera"></i>
+                    <span>Capture Snapshot</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Preview Thumbnail -->
+            <div id="upload-preview-container" class="hidden bg-white p-3 rounded-lg border border-emerald-300 flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <img id="answer-preview-img" src="" class="w-12 h-12 object-cover rounded border" alt="Submitted thumbnail">
+                <div>
+                  <p class="text-xs font-bold text-emerald-700">Answer Sheet Captured!</p>
+                  <p class="text-[10px] text-slate-400">Ready to proceed to next question.</p>
+                </div>
+              </div>
+              <button onclick="confirmAndNextQuestion()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow transition">
+                Confirm & Next Question <i class="fa-solid fa-arrow-right ml-1"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- PHASE 4: EXPIRED / NEXT CONTROL -->
+          <div id="ctrl-phase-next" class="hidden text-center py-4 space-y-3">
+            <div id="expired-notice" class="hidden bg-red-50 text-red-700 p-3 rounded-lg border border-red-200 text-xs font-bold mb-3">
+              <i class="fa-solid fa-circle-xmark mr-1"></i> Time Expired! 15s elapsed without uploading answer. 0 Marks allotted.
+            </div>
+            <button onclick="goToNextQuestion()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base px-6 py-2.5 rounded-xl shadow transition flex items-center mx-auto space-x-2">
+              <span>Next Question</span>
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 3 & 4: FINAL EVALUATION SUMMARY REPORT -->
+    <section id="step-results" class="hidden space-y-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 mb-6 gap-4">
+          <div>
+            <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-1 rounded">Evaluation Completed</span>
+            <h2 class="text-2xl font-bold text-slate-900 mt-2">AI Conceptual Scorecard</h2>
+            <p class="text-sm text-slate-500">Evaluated against uploaded PDF concepts using strict vision grading.</p>
+          </div>
+          <div class="bg-indigo-50 border border-indigo-200 px-6 py-3 rounded-xl text-center">
+            <span class="text-xs uppercase font-bold text-indigo-500">Total Score</span>
+            <div class="text-3xl font-black text-indigo-900" id="total-score-display">0 / 0</div>
+          </div>
+        </div>
+
+        <!-- Detailed Breakdown List -->
+        <div id="results-list" class="space-y-6">
+          <!-- Dynamically filled with evaluation cards -->
+        </div>
+
+        <div class="pt-6 border-t border-slate-100 flex justify-end space-x-3">
+          <button onclick="resetApp()" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold px-5 py-2.5 rounded-lg transition">
+            <i class="fa-solid fa-rotate-right mr-1.5"></i> Take Another Test
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SLIDE-OUT DRAWER: SUBMISSION HISTORY -->
+  <div id="drawer-overlay" onclick="toggleDrawer()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden transition-opacity"></div>
+  <aside id="drawer-panel" class="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
+    <div class="bg-indigo-950 text-white p-4 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-list-check"></i>
+        <h3 class="font-bold text-base">Question History & Submissions</h3>
+      </div>
+      <button onclick="toggleDrawer()" class="text-indigo-200 hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+    <div id="drawer-content" class="flex-1 overflow-y-auto p-4 space-y-4">
+      <!-- Dynamically filled with history items -->
+      <p class="text-xs text-slate-400 text-center py-8">No questions completed yet.</p>
+    </div>
+  </aside>
+
+  <!-- WEBCAM MODAL -->
+  <div id="webcam-modal" class="fixed inset-0 bg-slate-900/80 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-lg w-full p-5 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-slate-800 text-sm">Capture Answer Snapshot</h3>
+        <button onclick="closeWebcamModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="relative bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
+        <video id="webcam-video" autoplay playsinline class="w-full h-full object-cover"></video>
+        <canvas id="webcam-canvas" class="hidden"></canvas>
+      </div>
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeWebcamModal()" class="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600">Cancel</button>
+        <button onclick="captureWebcamSnapshot()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold">Take Snapshot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING OVERLAY -->
+  <div id="loading-overlay" class="fixed inset-0 bg-slate-900/70 z-50 hidden flex flex-col items-center justify-center text-white space-y-4">
+    <div class="w-12 h-12 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+    <p id="loading-text" class="text-sm font-semibold tracking-wide">Processing...</p>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       APP STATE & GLOBALS
+       ========================================================================== */
+    const STATE = {
+      pdfText: "",
+      pdfFileName: "",
+      questions: [], // { qNum, questionText, refConcepts }
+      submissions: [], // { qNum, questionText, refConcepts, imageData, status: 'submitted'|'expired', timeSpent }
+      currentQIndex: 0,
+      writingTimer: null,
+      writingTimeRemaining: 30,
+      uploadTimer: null,
+      uploadTimeRemaining: 15,
+      phase: 'IDLE' // IDLE, WRITING, UPLOADING, COMPLETE
+    };
+
+    /* API Key handling for Gemini Calls */
+    const GEMINI_API_KEY = ""; // Kept empty per runtime system setup
+
+    /* ==========================================================================
+       STEP 1: PDF PROCESSING & EXAM GENERATION
+       ========================================================================== */
+
+    function toggleFallbackText() {
+      const container = document.getElementById('fallback-text-container');
+      container.classList.toggle('hidden');
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.type !== 'application/pdf') {
+        alert('Please select a valid PDF file.');
+        return;
+      }
+      extractPdfText(file);
+    }
+
+    async function extractPdfText(file) {
+      showLoading("Extracting text from PDF...");
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let textContent = "";
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const text = await page.getTextContent();
+          const pageStrings = text.items.map(item => item.str);
+          textContent += pageStrings.join(" ") + "\n\n";
+        }
+
+        STATE.pdfText = textContent.trim();
+        STATE.pdfFileName = file.name;
+
+        // Update UI
+        document.getElementById('dropzone-prompt').classList.add('hidden');
+        document.getElementById('pdf-status-info').classList.remove('hidden');
+        document.getElementById('pdf-filename').innerText = file.name;
+        document.getElementById('pdf-page-count').innerText = `${pdf.numPages} pages extracted (${STATE.pdfText.length} characters)`;
+      } catch (err) {
+        console.error("PDF Read Error:", err);
+        alert("Could not read PDF file. Try pasting raw text below.");
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function generateExamFromPDF() {
+      // Fetch text fallback if PDF not uploaded
+      if (!STATE.pdfText) {
+        STATE.pdfText = document.getElementById('raw-pdf-text').value.trim();
+      }
+
+      if (!STATE.pdfText || STATE.pdfText.length < 20) {
+        alert("Please upload a study material PDF or paste sufficient text context to generate questions.");
+        return;
+      }
+
+      const numQ = parseInt(document.getElementById('num-questions').value, 10);
+      showLoading(`Generating ${numQ} conceptual CA questions...`);
+
+      try {
+        const prompt = `You are a Senior ICAI Conceptual Examiner. 
+Based ONLY on the following study text, create ${numQ} rigorous conceptual questions suitable for a Chartered Accountancy exam.
+
+Return a JSON array of objects with this EXACT structure:
+[
+  {
+    "qNum": 1,
+    "questionText": "Clear, direct conceptual question asking for explanation or application",
+    "refConcepts": ["Core concept point 1", "Core concept point 2", "Key legal/accounting principle"]
+  }
+]
+
+STUDY MATERIAL CONTEXT:
+${STATE.pdfText.substring(0, 15000)}`;
+
+        const payload = {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        };
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (jsonText) {
+          STATE.questions = JSON.parse(jsonText);
+        } else {
+          throw new Error("No response content from Gemini.");
+        }
+
+      } catch (err) {
+        console.warn("AI Generation fallback invoked:", err);
+        // Fallback simulated questions based on text
+        STATE.questions = Array.from({ length: numQ }, (_, i) => ({
+          qNum: i + 1,
+          questionText: `Explain the fundamental conceptual principles described in section ${i + 1} of the uploaded document and their practical applicability.`,
+          refConcepts: ["Core principle compliance", "Conditions and exceptions", "Financial/Legal impact analysis"]
+        }));
+      } finally {
+        hideLoading();
+        startExamFlow();
+      }
+    }
+
+    /* ==========================================================================
+       STEP 2: EXAM TIMING & QUESTION FLOW
+       ========================================================================== */
+
+    function startExamFlow() {
+      STATE.currentQIndex = 0;
+      STATE.submissions = [];
+      document.getElementById('step-setup').classList.add('hidden');
+      document.getElementById('step-exam').classList.remove('hidden');
+      loadCurrentQuestion();
+    }
+
+    function loadCurrentQuestion() {
+      const q = STATE.questions[STATE.currentQIndex];
+      document.getElementById('current-q-badge').innerText = `Q${q.qNum} of ${STATE.questions.length}`;
+      document.getElementById('question-text-box').innerText = q.questionText;
+
+      // Reset phase & timers
+      STATE.phase = 'IDLE';
+      STATE.writingTimeRemaining = 30;
+      STATE.uploadTimeRemaining = 15;
+      clearInterval(STATE.writingTimer);
+      clearInterval(STATE.uploadTimer);
+
+      updateTimerDisplays();
+
+      // UI phase visibility
+      document.getElementById('ctrl-phase-start').classList.remove('hidden');
+      document.getElementById('ctrl-phase-writing').classList.add('hidden');
+      document.getElementById('ctrl-phase-upload').classList.add('hidden');
+      document.getElementById('ctrl-phase-next').classList.add('hidden');
+      document.getElementById('upload-preview-container').classList.add('hidden');
+      document.getElementById('expired-notice').classList.add('hidden');
+
+      document.getElementById('exam-phase-indicator').innerText = "Ready to start writing phase";
+      document.getElementById('badge-writing-timer').className = "flex items-center space-x-2 bg-slate-100 border border-slate-300 px-3 py-1.5 rounded-lg text-slate-500 transition";
+      document.getElementById('badge-upload-timer').className = "flex items-center space-x-2 bg-slate-100 border border-slate-300 px-3 py-1.5 rounded-lg text-slate-500 transition";
+    }
+
+    function updateTimerDisplays() {
+      const wSec = STATE.writingTimeRemaining < 10 ? `0${STATE.writingTimeRemaining}` : STATE.writingTimeRemaining;
+      const uSec = STATE.uploadTimeRemaining < 10 ? `0${STATE.uploadTimeRemaining}` : STATE.uploadTimeRemaining;
+
+      document.getElementById('timer-writing-display').innerText = `00:${wSec}`;
+      document.getElementById('timer-upload-display').innerText = `00:${uSec}`;
+      document.getElementById('upload-mini-countdown').innerText = `${uSec}s remaining`;
+    }
+
+    /* Phase 1 -> 2: Start 30s Writing Timer */
+    function startWritingPhase() {
+      STATE.phase = 'WRITING';
+      document.getElementById('ctrl-phase-start').classList.add('hidden');
+      document.getElementById('ctrl-phase-writing').classList.remove('hidden');
+      document.getElementById('exam-phase-indicator').innerText = "Writing Phase Active (30s max)";
+
+      document.getElementById('badge-writing-timer').className = "flex items-center space-x-2 bg-amber-500 text-white px-3 py-1.5 rounded-lg shadow font-bold transition";
+
+      STATE.writingTimer = setInterval(() => {
+        STATE.writingTimeRemaining--;
+        updateTimerDisplays();
+        if (STATE.writingTimeRemaining <= 0) {
+          clearInterval(STATE.writingTimer);
+          endWritingPhase(); // Auto transition to 15s upload
+        }
+      }, 1000);
+    }
+
+    /* Phase 2 -> 3: End Writing & Immediately Start Strict 15s Upload Timer */
+    function endWritingPhase() {
+      clearInterval(STATE.writingTimer);
+      STATE.phase = 'UPLOADING';
+
+      document.getElementById('ctrl-phase-writing').classList.add('hidden');
+      document.getElementById('ctrl-phase-upload').classList.remove('hidden');
+      document.getElementById('exam-phase-indicator').innerText = "Upload Phase Active (15s STRICT)";
+
+      document.getElementById('badge-writing-timer').className = "flex items-center space-x-2 bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition";
+      document.getElementById('badge-upload-timer').className = "flex items-center space-x-2 bg-red-600 text-white px-3 py-1.5 rounded-lg shadow font-bold pulse-ring transition";
+
+      STATE.uploadTimer = setInterval(() => {
+        STATE.uploadTimeRemaining--;
+        updateTimerDisplays();
+        if (STATE.uploadTimeRemaining <= 0) {
+          handleUploadTimeout();
+        }
+      }, 1000);
+    }
+
+    /* Upload Timeout Handler (0 Marks) */
+    function handleUploadTimeout() {
+      clearInterval(STATE.uploadTimer);
+      STATE.phase = 'EXPIRED';
+
+      // Record zero score timeout submission
+      const q = STATE.questions[STATE.currentQIndex];
+      STATE.submissions.push({
+        qNum: q.qNum,
+        questionText: q.questionText,
+        refConcepts: q.refConcepts,
+        imageData: null,
+        status: 'expired',
+        score: 0,
+        ocrText: "NO SUBMISSION - TIME EXPIRED",
+        evaluation: "Student failed to upload answer image within the mandatory 15-second window. Allotted 0 marks."
+      });
+
+      updateHistoryDrawer();
+
+      // UI transition
+      document.getElementById('ctrl-phase-upload').classList.add('hidden');
+      document.getElementById('ctrl-phase-next').classList.remove('hidden');
+      document.getElementById('expired-notice').classList.remove('hidden');
+      document.getElementById('exam-phase-indicator').innerText = "Question Expired (0 Marks)";
+      document.getElementById('badge-upload-timer').className = "flex items-center space-x-2 bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition";
+    }
+
+    /* Handle Image Capture / Upload within 15s */
+    function handleAnswerImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        processCapturedAnswerImage(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function processCapturedAnswerImage(base64Data) {
+      // Stop timer since uploaded successfully
+      clearInterval(STATE.uploadTimer);
+      document.getElementById('badge-upload-timer').className = "flex items-center space-x-2 bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition";
+
+      const q = STATE.questions[STATE.currentQIndex];
+
+      // Store temporary submitted data
+      STATE.currentActiveSubmission = {
+        qNum: q.qNum,
+        questionText: q.questionText,
+        refConcepts: q.refConcepts,
+        imageData: base64Data,
+        status: 'submitted'
+      };
+
+      // Show preview
+      document.getElementById('answer-preview-img').src = base64Data;
+      document.getElementById('upload-preview-container').classList.remove('hidden');
+      document.getElementById('exam-phase-indicator').innerText = "Answer captured - ready to advance";
+    }
+
+    function confirmAndNextQuestion() {
+      if (STATE.currentActiveSubmission) {
+        STATE.submissions.push(STATE.currentActiveSubmission);
+        STATE.currentActiveSubmission = null;
+        updateHistoryDrawer();
+      }
+      goToNextQuestion();
+    }
+
+    function goToNextQuestion() {
+      if (STATE.currentQIndex + 1 < STATE.questions.length) {
+        STATE.currentQIndex++;
+        loadCurrentQuestion();
+      } else {
+        finishExamAndEvaluate();
+      }
+    }
+
+    /* ==========================================================================
+       WEBCAM SNAPSHOT CONTROLLER
+       ========================================================================== */
+
+    let videoStream = null;
+
+    async function openWebcamModal() {
+      const modal = document.getElementById('webcam-modal');
+      const video = document.getElementById('webcam-video');
+      modal.classList.remove('hidden');
+
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = videoStream;
+      } catch (err) {
+        alert("Unable to access camera: " + err.message);
+        closeWebcamModal();
+      }
+    }
+
+    function closeWebcamModal() {
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      document.getElementById('webcam-modal').classList.add('hidden');
+    }
+
+    function captureWebcamSnapshot() {
+      const video = document.getElementById('webcam-video');
+      const canvas = document.getElementById('webcam-canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      closeWebcamModal();
+      processCapturedAnswerImage(dataUrl);
+    }
+
+    /* ==========================================================================
+       DRAWER / SUBMISSION HISTORY VIEW
+       ========================================================================== */
+
+    function toggleDrawer() {
+      const overlay = document.getElementById('drawer-overlay');
+      const panel = document.getElementById('drawer-panel');
+      overlay.classList.toggle('hidden');
+      panel.classList.toggle('translate-x-full');
+    }
+
+    function updateHistoryDrawer() {
+      const badge = document.getElementById('history-badge');
+      badge.innerText = STATE.submissions.length;
+
+      const container = document.getElementById('drawer-content');
+      if (STATE.submissions.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-8">No questions completed yet.</p>`;
+        return;
+      }
+
+      container.innerHTML = STATE.submissions.map((sub, idx) => `
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-xs text-slate-800">Q${sub.qNum}: Conceptual Question</span>
+            <span class="${sub.status === 'submitted' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'} text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+              ${sub.status}
+            </span>
+          </div>
+          <p class="text-xs text-slate-600 line-clamp-2">${sub.questionText}</p>
+          ${sub.imageData ? `
+            <div class="mt-2 border rounded overflow-hidden h-28 bg-black flex items-center justify-center">
+              <img src="${sub.imageData}" class="h-full object-contain" alt="Submission preview">
+            </div>
+          ` : `
+            <div class="mt-2 text-[11px] text-red-600 bg-red-50 p-2 rounded border border-red-100 italic">
+              No image uploaded (15s time limit exceeded).
+            </div>
+          `}
+        </div>
+      `).join('');
+    }
+
+    /* ==========================================================================
+       STEP 4: STRICT GEMINI AI VISION EVALUATION
+       ========================================================================== */
+
+    async function finishExamAndEvaluate() {
+      document.getElementById('step-exam').classList.add('hidden');
+      document.getElementById('step-results').classList.remove('hidden');
+
+      showLoading("Performing Strict Gemini AI Vision Conceptual Evaluation...");
+
+      let totalScore = 0;
+      let maxTotal = STATE.questions.length * 10;
+      const resultsContainer = document.getElementById('results-list');
+      resultsContainer.innerHTML = "";
+
+      for (let i = 0; i < STATE.submissions.length; i++) {
+        const sub = STATE.submissions[i];
+
+        if (sub.status === 'expired' || !sub.imageData) {
+          // Render zero score card
+          renderResultCard({
+            qNum: sub.qNum,
+            questionText: sub.questionText,
+            score: 0,
+            ocrText: "[No Upload]",
+            matchedConcepts: [],
+            missingConcepts: sub.refConcepts,
+            feedback: "Automated 0 marks: Time limit of 15 seconds expired without submitting an answer photo.",
+            imageData: null
+          });
+          continue;
+        }
+
+        // Evaluate via Gemini Vision API
+        try {
+          const evalResult = await evaluateSingleSubmissionWithAI(sub);
+          totalScore += evalResult.score;
+          renderResultCard({
+            qNum: sub.qNum,
+            questionText: sub.questionText,
+            score: evalResult.score,
+            ocrText: evalResult.ocrText,
+            matchedConcepts: evalResult.matchedConcepts,
+            missingConcepts: evalResult.missingConcepts,
+            feedback: evalResult.feedback,
+            imageData: sub.imageData
+          });
+        } catch (err) {
+          console.error("Evaluation error:", err);
+          renderResultCard({
+            qNum: sub.qNum,
+            questionText: sub.questionText,
+            score: 0,
+            ocrText: "Error processing image",
+            matchedConcepts: [],
+            missingConcepts: sub.refConcepts,
+            feedback: "Failed to evaluate handwritten text clearly. Evaluated as 0 marks.",
+            imageData: sub.imageData
+          });
+        }
+      }
+
+      document.getElementById('total-score-display').innerText = `${totalScore} / ${maxTotal}`;
+      hideLoading();
+    }
+
+    async function evaluateSingleSubmissionWithAI(submission) {
+      // Prepare image base64 without prefix
+      const base64Clean = submission.imageData.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+
+      const systemPrompt = `You are a strict, uncompromising Senior ICAI Evaluator.
+Your goal is to perform a rigorous conceptual check on the candidate's handwritten answer.
+
+STRICT MARKING RULES:
+1. Carefully OCR the text written on the candidate's answer sheet.
+2. Match the candidate's explanation against the PDF Reference Key Concepts.
+3. Grade based purely on LOGIC, ACCURACY, and TRUE CONCEPTUAL UNDERSTANDING.
+4. RIGOROUS PENALTY: If the student gives incorrect facts, wrong conclusions, or off-topic gibberish, award 0 MARKS. Do NOT give high marks to wrong answers.
+5. Max score per question is 10.
+
+Return JSON response matching this schema:
+{
+  "ocrText": "Transcribed handwritten text read from image",
+  "score": 0 to 10 integer,
+  "matchedConcepts": ["Concept point successfully explained"],
+  "missingConcepts": ["Missing or incorrect concept point"],
+  "feedback": "Strict detailed breakdown explaining why marks were awarded or deducted"
+}`;
+
+      const payload = {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: `QUESTION: ${submission.questionText}\nREFERENCE PDF CONCEPTS TO MATCH: ${JSON.stringify(submission.refConcepts)}\nEvaluate this student answer sheet strictly:` },
+              {
+                inlineData: {
+                  mimeType: "image/jpeg",
+                  data: base64Clean
+                }
+              }
+            ]
+          }
+        ],
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      };
+
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${GEMINI_API_KEY}`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (textResponse) {
+        return JSON.parse(textResponse);
+      } else {
+        throw new Error("Invalid vision evaluation output.");
+      }
+    }
+
+    function renderResultCard(data) {
+      const container = document.getElementById('results-list');
+      const scoreColor = data.score >= 7 ? 'text-emerald-600' : data.score >= 4 ? 'text-amber-600' : 'text-red-600';
+
+      const cardHtml = `
+        <div class="border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 gap-2">
+            <div>
+              <span class="text-xs font-bold text-indigo-600 uppercase">Question ${data.qNum}</span>
+              <h4 class="font-bold text-slate-800 text-base mt-0.5">${data.questionText}</h4>
+            </div>
+            <div class="bg-white px-4 py-2 border rounded-lg text-center font-bold ${scoreColor}">
+              Score: ${data.score} / 10
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Left: Submitted Image & OCR -->
+            <div class="space-y-2">
+              <span class="text-xs font-bold text-slate-500 uppercase">Uploaded Answer Sheet</span>
+              ${data.imageData ? `
+                <div class="border rounded-lg overflow-hidden bg-black h-48 flex items-center justify-center">
+                  <img src="${data.imageData}" class="h-full object-contain" alt="Submitted sheet">
+                </div>
+              ` : `
+                <div class="h-48 border rounded-lg bg-red-50 flex items-center justify-center text-red-600 text-xs font-semibold">
+                  No image submitted (Expired)
+                </div>
+              `}
+              <div class="bg-white p-3 border rounded-lg text-xs font-mono text-slate-600">
+                <strong>OCR Transcribed Text:</strong>
+                <p class="mt-1">${data.ocrText || 'N/A'}</p>
+              </div>
+            </div>
+
+            <!-- Right: Conceptual Analysis -->
+            <div class="space-y-3">
+              <div>
+                <span class="text-xs font-bold text-emerald-700 uppercase">Concept Match Matrix</span>
+                <ul class="mt-1 space-y-1">
+                  ${(data.matchedConcepts || []).map(m => `
+                    <li class="text-xs text-emerald-800 flex items-center"><i class="fa-solid fa-check text-emerald-500 mr-2"></i> ${m}</li>
+                  `).join('') || '<li class="text-xs text-slate-400">None matched</li>'}
+                </ul>
+              </div>
+
+              <div>
+                <span class="text-xs font-bold text-red-700 uppercase">Missing / Incorrect Points</span>
+                <ul class="mt-1 space-y-1">
+                  ${(data.missingConcepts || []).map(m => `
+                    <li class="text-xs text-red-800 flex items-center"><i class="fa-solid fa-xmark text-red-500 mr-2"></i> ${m}</li>
+                  `).join('') || '<li class="text-xs text-slate-400">No major missing concepts</li>'}
+                </ul>
+              </div>
+
+              <div class="bg-indigo-50/70 p-3 rounded-lg border border-indigo-100">
+                <span class="text-xs font-bold text-indigo-900 uppercase">Strict Evaluator Feedback</span>
+                <p class="text-xs text-indigo-950 mt-1 leading-relaxed">${data.feedback}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', cardHtml);
+    }
+
+    /* Reset Application */
+    function resetApp() {
+      STATE.pdfText = "";
+      STATE.pdfFileName = "";
+      STATE.questions = [];
+      STATE.submissions = [];
+      STATE.currentQIndex = 0;
+
+      document.getElementById('pdf-file-input').value = "";
+      document.getElementById('raw-pdf-text').value = "";
+      document.getElementById('dropzone-prompt').classList.remove('hidden');
+      document.getElementById('pdf-status-info').classList.add('hidden');
+
+      document.getElementById('step-results').classList.add('hidden');
+      document.getElementById('step-exam').classList.add('hidden');
+      document.getElementById('step-setup').classList.remove('hidden');
+
+      updateHistoryDrawer();
+    }
+
+    /* UI Helper Utilities */
+    function showLoading(msg) {
+      document.getElementById('loading-text').innerText = msg || "Processing...";
+      document.getElementById('loading-overlay').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      document.getElementById('loading-overlay').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
